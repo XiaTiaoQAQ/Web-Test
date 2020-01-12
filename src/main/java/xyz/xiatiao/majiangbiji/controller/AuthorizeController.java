@@ -5,13 +5,18 @@ import com.alibaba.fastjson.JSON;
 import okhttp3.*;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import xyz.xiatiao.majiangbiji.dto.AccessTokenDTO;
+import xyz.xiatiao.majiangbiji.dto.GithubUser;
 import xyz.xiatiao.majiangbiji.provider.GithubProvider;
 
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
 import java.io.IOException;
 
 @Controller
@@ -20,37 +25,36 @@ public class AuthorizeController {
     @Autowired
     private GithubProvider githubProvider;
 
+    @Value("${github.client.id}")
+    private String clientId;
+    @Value("${github.client.secret}")
+    private String clientSecret;
+    @Value("${github.client.redirect.uri}")
+    private String redirectUri;
+
     @GetMapping("/callback")
-    public String callback(@RequestParam(name = "code")String code,
-                           @RequestParam(name = "state")String state) {
+    public String callback(@RequestParam(name = "code") String code,
+                           @RequestParam(name = "state") String state,
+                           HttpServletRequest request) {
         AccessTokenDTO accessTokenDTO = new AccessTokenDTO();
         accessTokenDTO.setCode(code);
         accessTokenDTO.setState(state);
-        accessTokenDTO.setRedirect_uri("http://localhost:8080/callback");
-        accessTokenDTO.setClient_id("228be2b1fe302327e914");
-        accessTokenDTO.setClient_secret("3e71f13bca27ea8c342e8b6a6520bcea3c0c2e01");
+        accessTokenDTO.setRedirect_uri(redirectUri);
+        accessTokenDTO.setClient_id(clientId);
+        accessTokenDTO.setClient_secret(clientSecret);
         String strResponse = githubProvider.getAccessToken(accessTokenDTO);
         String accessToken = strResponse.split("&")[0].split("=")[1];
-        System.out.println("accessToken:"+accessToken);
-        GithubProvider gitUser = getGitUserInfo(accessToken);
-        System.out.println("userName:"+gitUser);
-        return "index";
-    }
-
-    public GithubProvider getGitUserInfo(String token){
-        String url = "https://api.github.com/user?access_token="+token;
-        OkHttpClient okHttpClient = new OkHttpClient();
-        Request request = new Request.Builder()
-                .url(url)
-                .build();
-        try (Response response = okHttpClient.newCall(request).execute()) {
-            String strResponse = response.body().string();
-            System.out.println("getGitUserInfo："+strResponse);
-            GithubProvider githubProvider = JSON.parseObject(strResponse,GithubProvider.class);
-            return githubProvider;
-        } catch (IOException e) {
-            e.printStackTrace();
+        System.out.println("accessToken:" + accessToken);
+        GithubUser gitUser = githubProvider.getGitUserInfo(accessToken);
+        if (gitUser != null) {
+            //此刻已授权登录拿到user信息
+            HttpSession session = request.getSession();
+            session.setAttribute("user",gitUser);
+            return ("redirect:/");
+        } else {
+            //此刻未授权成功返回主页执行重新登录
+            //TODO 此刻应该让首页提示授权失败
+            return ("redirect:/");
         }
-        return null;
     }
 }
