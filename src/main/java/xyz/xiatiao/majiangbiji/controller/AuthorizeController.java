@@ -61,11 +61,16 @@ public class AuthorizeController {
             user.setAccountId(String.valueOf(githubUser.getId()));
             user.setGmtCreate(System.currentTimeMillis());
             user.setGmtModified(user.getGmtCreate());
-            userMapper.insertUser(user);
-            System.out.println("用户登录成功");
+            if (userMapper.userIsRepeat(user.getAccountId())){
+                //已经有用户数据就不反复添加了，直接更新
+                userMapper.updateUser(user);
+                System.out.println("用户数据更新成功:"+user.toString());
+            }else {
+                userMapper.insertUser(user);
+                System.out.println("用户信息添加数据库成功:"+user.toString());
+            }
             httpServletResponse.addCookie(new Cookie("token",user.getToken()));
-            HttpSession session = request.getSession();
-            session.setAttribute("user",githubUser);
+            System.out.println("存储cookie成功");
             return ("redirect:/");
         } else {
             //此刻未授权成功返回主页执行重新登录
